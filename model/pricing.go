@@ -341,16 +341,20 @@ func updatePricing() {
 	}
 
 	// fork 扩展：从模型元数据构建能力缓存（精确/前缀/后缀/包含规则匹配过的 metaMap 已就绪）
-	modelCapabilities = make(map[string]ModelCapabilities)
+	// 写侧持 modelCapabilitiesLock（与 GetModelCapabilities 读锁配对），避免 data race
+	newCaps := make(map[string]ModelCapabilities)
 	for modelName, meta := range metaMap {
 		caps := ModelCapabilities{
 			ContextLength:   int64(meta.ContextLength),
 			MaxOutputTokens: int64(meta.MaxOutputTokens),
 		}
 		if caps.ContextLength > 0 || caps.MaxOutputTokens > 0 {
-			modelCapabilities[modelName] = caps
+			newCaps[modelName] = caps
 		}
 	}
+	modelCapabilitiesLock.Lock()
+	modelCapabilities = newCaps
+	modelCapabilitiesLock.Unlock()
 
 	// 构建全局 supportedEndpointMap（默认 + 自定义覆盖）
 	supportedEndpointMap = make(map[string]common.EndpointInfo)
