@@ -133,7 +133,7 @@ export function ModelCapabilitiesEditor(props: ModelCapabilitiesEditorProps) {
     <div className='space-y-3'>
       <FormDescription>
         {t(
-          'Declare per-model capabilities exposed on /v1/models. Aggregated across channels: capabilities union, token limits max.'
+          'Declared with the public model names above (pre model-mapping). Exposed on /v1/models; aggregated across channels: capabilities union, token limits max.'
         )}
       </FormDescription>
       <div className='space-y-3'>
