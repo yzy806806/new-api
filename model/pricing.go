@@ -35,6 +35,10 @@ type Pricing struct {
 	AudioCompletionRatio   *float64                             `json:"audio_completion_ratio,omitempty"`
 	EnableGroup            []string                             `json:"enable_groups"`
 	SupportedEndpointTypes []constant.EndpointType              `json:"supported_endpoint_types"`
+	// fork 扩展：渠道聚合的模型能力（dashboard 模型详情展示）
+	ContextLength   *int64   `json:"context_length,omitempty"`
+	MaxOutputTokens *int64   `json:"max_output_tokens,omitempty"`
+	Capabilities    []string `json:"capabilities,omitempty"`
 	BillingMode            string                               `json:"billing_mode,omitempty"`
 	BillingExpr            string                               `json:"billing_expr,omitempty"`
 	BillingUsageSchema     map[string]jsplugin.UsageFieldSchema `json:"billing_usage_schema,omitempty"`
@@ -87,6 +91,64 @@ func GetModelCapabilities(model string) (ModelCapabilities, bool) {
 	defer modelCapabilitiesLock.RUnlock()
 	caps, ok := modelCapabilities[model]
 	return caps, ok
+}
+
+// ModelChannelCaps 渠道级模型能力声明（JSON 反序列化目标）
+type ModelChannelCaps struct {
+	ContextLength   int64    `json:"context_length"`
+	MaxOutputTokens int64    `json:"max_output_tokens"`
+	Capabilities    []string `json:"capabilities"`
+}
+
+// buildAggregatedCapabilities fork 扩展：跨启用渠道聚合各模型的模型能力。
+// capabilities 并集；context_length / max_output_tokens 取最大值。渠道未声明或 JSON 损坏时跳过。
+func buildAggregatedCapabilities(enableAbilities []AbilityWithChannel) map[string]ModelCapabilities {
+	if len(enableAbilities) == 0 {
+		return map[string]ModelCapabilities{}
+	}
+	enabledChannelIDs := make(map[int]bool, len(enableAbilities))
+	for _, ab := range enableAbilities {
+		enabledChannelIDs[ab.ChannelId] = true
+	}
+	var channels []Channel
+	if err := DB.Select("id", "model_capabilities").Find(&channels).Error; err != nil {
+		common.SysLog(fmt.Sprintf("buildAggregatedCapabilities: load channels error: %v", err))
+		return map[string]ModelCapabilities{}
+	}
+	merged := make(map[string]ModelCapabilities)
+	capsSetByModel := make(map[string]map[string]bool)
+	for _, ch := range channels {
+		if !enabledChannelIDs[ch.Id] || ch.ModelCapabilities == nil || strings.TrimSpace(*ch.ModelCapabilities) == "" {
+			continue
+		}
+		var perModel map[string]ModelChannelCaps
+		if err := common.Unmarshal([]byte(*ch.ModelCapabilities), &perModel); err != nil {
+			common.SysLog(fmt.Sprintf("buildAggregatedCapabilities: channel %d model_capabilities unmarshal error: %v", ch.Id, err))
+			continue
+		}
+		for modelName, mc := range perModel {
+			capsSet := capsSetByModel[modelName]
+			if capsSet == nil {
+				capsSet = make(map[string]bool)
+				capsSetByModel[modelName] = capsSet
+			}
+			existing := merged[modelName]
+			for _, c := range mc.Capabilities {
+				if c != "" && !capsSet[c] {
+					capsSet[c] = true
+					existing.Capabilities = append(existing.Capabilities, c)
+				}
+			}
+			if mc.ContextLength > existing.ContextLength {
+				existing.ContextLength = mc.ContextLength
+			}
+			if mc.MaxOutputTokens > existing.MaxOutputTokens {
+				existing.MaxOutputTokens = mc.MaxOutputTokens
+			}
+			merged[modelName] = existing
+		}
+	}
+	return merged
 }
 
 func GetPricing() []Pricing {
@@ -341,24 +403,9 @@ func updatePricing() {
 		modelSupportEndpointTypes[model] = supportedEndpoints
 	}
 
-	// fork 扩展：从模型元数据构建能力缓存（精确/前缀/后缀/包含规则匹配过的 metaMap 已就绪）
-	// 写侧持 modelCapabilitiesLock（与 GetModelCapabilities 读锁配对），避免 data race
-	newCaps := make(map[string]ModelCapabilities)
-	for modelName, meta := range metaMap {
-		caps := ModelCapabilities{
-			ContextLength:   int64(meta.ContextLength),
-			MaxOutputTokens: int64(meta.MaxOutputTokens),
-		}
-		if caps.ContextLength > 0 || caps.MaxOutputTokens > 0 || strings.TrimSpace(meta.Capabilities) != "" {
-			if strings.TrimSpace(meta.Capabilities) != "" {
-				var capList []string
-				if err := common.Unmarshal([]byte(meta.Capabilities), &capList); err == nil {
-					caps.Capabilities = capList
-				}
-			}
-			newCaps[modelName] = caps
-		}
-	}
+	// fork 扩展：从渠道 model_capabilities 聚合能力缓存
+	// 聚合规则：capabilities 取并集，context_length/max_output_tokens 取最大值（最宽松口径）
+	newCaps := buildAggregatedCapabilities(enableAbilities)
 	modelCapabilitiesLock.Lock()
 	modelCapabilities = newCaps
 	modelCapabilitiesLock.Unlock()
@@ -409,6 +456,20 @@ func updatePricing() {
 			ModelName:              model,
 			EnableGroup:            groups.Items(),
 			SupportedEndpointTypes: modelSupportEndpointTypes[model],
+		}
+		// fork 扩展：填入渠道聚合能力
+		if caps, ok := modelCapabilities[model]; ok {
+			if caps.ContextLength > 0 {
+				ctxLen := caps.ContextLength
+				pricing.ContextLength = &ctxLen
+			}
+			if caps.MaxOutputTokens > 0 {
+				maxOut := caps.MaxOutputTokens
+				pricing.MaxOutputTokens = &maxOut
+			}
+			if len(caps.Capabilities) > 0 {
+				pricing.Capabilities = caps.Capabilities
+			}
 		}
 
 		// 补充模型元数据（描述、标签、供应商、状态）

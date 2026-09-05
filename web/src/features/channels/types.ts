@@ -54,6 +54,7 @@ export const channelSchema = z.object({
   group: z.string().default('default'),
   used_quota: z.number().default(0),
   model_mapping: z.string().nullish(),
+  model_capabilities: z.string().nullish(),
   status_code_mapping: z.string().nullish(),
   priority: z.number().nullish(),
   auto_ban: z.number().nullish(),
@@ -332,6 +333,7 @@ export interface TagOperationParams {
   priority?: number
   weight?: number
   model_mapping?: string
+  model_capabilities?: string | null
   models?: string
   groups?: string
 }
@@ -349,6 +351,7 @@ export interface ChannelFormData {
   models: string
   group: string
   model_mapping?: string
+  model_capabilities?: string | null
   priority?: number
   weight?: number
   test_model?: string

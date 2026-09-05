@@ -214,6 +214,35 @@ export const channelFormSchema = z
         isOptionalModelMapping,
         'Model mapping must be a JSON object with string values'
       ),
+    model_capabilities: z
+      .string()
+      .optional()
+      .refine(
+        (v) => {
+          if (!v || !v.trim()) return true
+          try {
+            const parsed = JSON.parse(v)
+            if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+              return false
+            for (const [model, caps] of Object.entries(parsed)) {
+              if (typeof caps !== 'object' || caps === null) return false
+              const c = caps as Record<string, unknown>
+              if (
+                (c.context_length !== undefined &&
+                  (typeof c.context_length !== 'number' || c.context_length < 0)) ||
+                (c.max_output_tokens !== undefined &&
+                  (typeof c.max_output_tokens !== 'number' || c.max_output_tokens < 0)) ||
+                (c.capabilities !== undefined && !Array.isArray(c.capabilities))
+              )
+                return false
+            }
+            return true
+          } catch {
+            return false
+          }
+        },
+        'Model capabilities must be a JSON object: {"model": {"context_length": number, "max_output_tokens": number, "capabilities": string[]}}'
+      ),
     priority: z.number().optional(),
     weight: z.number().optional(),
     test_model: z.string().optional(),
@@ -421,6 +450,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   models: '',
   group: ['default'],
   model_mapping: '',
+  model_capabilities: '',
   priority: 0,
   weight: 0,
   test_model: '',
@@ -574,6 +604,7 @@ export function transformChannelToFormDefaults(
     models: channel.models || '',
     group: parseGroups(channel.group || 'default'),
     model_mapping: channel.model_mapping || '',
+    model_capabilities: channel.model_capabilities || '',
     priority: channel.priority || 0,
     weight: channel.weight || 0,
     test_model: channel.test_model || '',
@@ -809,6 +840,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     models: formData.models,
     group: formatGroups(formData.group),
     model_mapping: formData.model_mapping || null,
+    model_capabilities: formData.model_capabilities || null,
     priority: formData.priority || null,
     weight: formData.weight || null,
     test_model: formData.test_model || null,
@@ -857,6 +889,7 @@ export function transformFormDataToUpdatePayload(
     models: formData.models,
     group: formatGroups(formData.group),
     model_mapping: formData.model_mapping || null,
+    model_capabilities: formData.model_capabilities || null,
     priority: formData.priority ?? 0,
     weight: formData.weight ?? 0,
     test_model: formData.test_model || null,

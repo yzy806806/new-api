@@ -181,6 +181,7 @@ import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { AdvancedCustomEditorDialog } from '../dialogs/advanced-custom-editor-dialog'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
+import { ModelCapabilitiesEditor } from './model-capabilities-editor'
 import {
   MissingModelsConfirmationDialog,
   type MissingModelsAction,
@@ -3417,6 +3418,25 @@ export function ChannelMutateDrawer({
                                       </AlertDescription>
                                     </Alert>
                                   )}
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            {/* fork 扩展：渠道级模型能力声明（/v1/models 聚合数据源）*/}
+                            <FormField
+                              control={form.control}
+                              name='model_capabilities'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Model Capabilities')}</FormLabel>
+                                  <FormControl>
+                                    <ModelCapabilitiesEditor
+                                      models={currentModelsArray}
+                                      value={field.value || ''}
+                                      onChange={field.onChange}
+                                    />
+                                  </FormControl>
                                   <FormMessage />
                                 </FormItem>
                               )}

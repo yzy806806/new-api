@@ -35,13 +35,6 @@ type Model struct {
 	UpdatedTime  int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
 
-	// 模型能力元数据（fork 扩展）：0 = 未设置（/v1/models 输出时以 omitempty 隐藏）
-	ContextLength   int    `json:"context_length,omitempty"`
-	MaxOutputTokens int    `json:"max_output_tokens,omitempty"`
-	// Capabilities fork 扩展：能力位 JSON 数组，取值对齐 models.dev 词汇表
-	// （tools / reasoning / structured_output / vision / streaming 等），如 ["tools","reasoning"]
-	Capabilities string `json:"capabilities,omitempty" gorm:"type:varchar(255)"`
-
 	BoundChannels []BoundChannel `json:"bound_channels,omitempty" gorm:"-"`
 	EnableGroups  []string       `json:"enable_groups,omitempty" gorm:"-"`
 	QuotaTypes    []int          `json:"quota_types,omitempty" gorm:"-"`
@@ -84,9 +77,8 @@ func IsModelNameDuplicated(id int, name string) (bool, error) {
 func (mi *Model) Update() error {
 	mi.UpdatedTime = common.GetTimestamp()
 	// 使用 Select 强制更新所有字段，包括零值
-	// fork 扩展：包含 context_length / max_output_tokens 能力字段
 	return DB.Model(&Model{}).Where("id = ?", mi.Id).
-		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time", "context_length", "max_output_tokens", "capabilities").
+		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time").
 		Updates(mi).Error
 }
 
