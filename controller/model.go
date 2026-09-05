@@ -186,6 +186,9 @@ func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.Open
 			maxOut := caps.MaxOutputTokens
 			oaiModel.MaxOutputTokens = &maxOut
 		}
+		if len(caps.Capabilities) > 0 {
+			oaiModel.Capabilities = caps.Capabilities
+		}
 	}
 	return oaiModel
 }

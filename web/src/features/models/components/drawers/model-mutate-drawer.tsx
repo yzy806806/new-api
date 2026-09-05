@@ -71,6 +71,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import {
   useSystemOptions,
@@ -86,6 +87,16 @@ import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
 import type { Model } from '../../types'
 
+// fork 扩展：模型能力复选框选项（对齐 models.dev 词汇表）
+const MODEL_CAPABILITY_OPTIONS: { value: string; label: string }[] = [
+  { value: 'tools', label: 'Tools' },
+  { value: 'reasoning', label: 'Reasoning' },
+  { value: 'structured_output', label: 'Structured Output' },
+  { value: 'vision', label: 'Vision' },
+  { value: 'streaming', label: 'Streaming' },
+  { value: 'caching', label: 'Caching' },
+]
+
 // Extended schema for ratio configuration (internal form state only)
 const extendedModelFormSchema = z.object({
   id: z.number().optional(),
@@ -93,6 +104,7 @@ const extendedModelFormSchema = z.object({
   description: z.string(),
   icon: z.string(),
   tags: z.array(z.string()),
+  capabilities: z.array(z.string()),
   vendor_id: z.number().optional(),
   endpoints: z.string(),
   name_rule: z.number(),
@@ -433,6 +445,7 @@ export function ModelMutateDrawer({
         description: model.description || '',
         icon: model.icon || '',
         tags: parseModelTags(model.tags),
+        capabilities: parseModelTags(model.capabilities || ''),
         vendor_id: model.vendor_id,
         endpoints: model.endpoints || '',
         name_rule: model.name_rule || 0,
@@ -458,6 +471,7 @@ export function ModelMutateDrawer({
         description: '',
         icon: '',
         tags: [],
+        capabilities: [],
         vendor_id: undefined,
         endpoints: '',
         name_rule: 0,
@@ -476,6 +490,9 @@ export function ModelMutateDrawer({
           ...values,
           id: isEditing ? currentModelId : undefined,
           tags: Array.isArray(values.tags) ? values.tags.join(',') : '',
+          capabilities: Array.isArray(values.capabilities)
+            ? JSON.stringify(values.capabilities)
+            : '',
           status: values.status ? 1 : 0,
           sync_official: values.sync_official ? 1 : 0,
         }
@@ -870,6 +887,49 @@ export function ModelMutateDrawer({
                     </FormControl>
                     <FormDescription>
                       {t('Press Enter or comma to add tags')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* fork 扩展：模型能力（对齐 models.dev 词汇表）*/}
+              <FormField
+                control={form.control}
+                name='capabilities'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Capabilities')}</FormLabel>
+                    <div className='grid grid-cols-2 gap-2'>
+                      {MODEL_CAPABILITY_OPTIONS.map((cap) => {
+                        const checked = (field.value || []).includes(cap.value)
+                        return (
+                          <label
+                            key={cap.value}
+                            className='flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent'
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) => {
+                                const current = field.value || []
+                                field.onChange(
+                                  v
+                                    ? [...current, cap.value]
+                                    : current.filter(
+                                        (c) => c !== cap.value
+                                      )
+                                )
+                              }}
+                            />
+                            {t(cap.label)}
+                          </label>
+                        )
+                      })}
+                    </div>
+                    <FormDescription>
+                      {t(
+                        'Capability flags aligned with models.dev vocabulary'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

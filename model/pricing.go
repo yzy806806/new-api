@@ -75,6 +75,7 @@ var (
 type ModelCapabilities struct {
 	ContextLength   int64
 	MaxOutputTokens int64
+	Capabilities    []string
 }
 
 // GetModelCapabilities fork 扩展：返回模型能力元数据；未录入时 ok=false
@@ -348,7 +349,13 @@ func updatePricing() {
 			ContextLength:   int64(meta.ContextLength),
 			MaxOutputTokens: int64(meta.MaxOutputTokens),
 		}
-		if caps.ContextLength > 0 || caps.MaxOutputTokens > 0 {
+		if caps.ContextLength > 0 || caps.MaxOutputTokens > 0 || strings.TrimSpace(meta.Capabilities) != "" {
+			if strings.TrimSpace(meta.Capabilities) != "" {
+				var capList []string
+				if err := common.Unmarshal([]byte(meta.Capabilities), &capList); err == nil {
+					caps.Capabilities = capList
+				}
+			}
 			newCaps[modelName] = caps
 		}
 	}
