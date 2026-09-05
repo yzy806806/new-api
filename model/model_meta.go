@@ -35,6 +35,10 @@ type Model struct {
 	UpdatedTime  int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
 
+	// 模型能力元数据（fork 扩展）：0 = 未设置（/v1/models 输出时以 omitempty 隐藏）
+	ContextLength   int `json:"context_length,omitempty"`
+	MaxOutputTokens int `json:"max_output_tokens,omitempty"`
+
 	BoundChannels []BoundChannel `json:"bound_channels,omitempty" gorm:"-"`
 	EnableGroups  []string       `json:"enable_groups,omitempty" gorm:"-"`
 	QuotaTypes    []int          `json:"quota_types,omitempty" gorm:"-"`

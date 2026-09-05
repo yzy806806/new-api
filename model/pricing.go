@@ -65,7 +65,28 @@ var (
 var (
 	modelSupportEndpointTypes = make(map[string][]constant.EndpointType)
 	modelSupportEndpointsLock = sync.RWMutex{}
+
+	// fork 扩展：模型能力元数据缓存（模型名 -> context_length / max_output_tokens）
+	modelCapabilities     = make(map[string]ModelCapabilities)
+	modelCapabilitiesLock = sync.RWMutex{}
 )
+
+// ModelCapabilities fork 扩展：/v1/models 输出的能力字段
+type ModelCapabilities struct {
+	ContextLength   int64
+	MaxOutputTokens int64
+}
+
+// GetModelCapabilities fork 扩展：返回模型能力元数据；未录入时 ok=false
+func GetModelCapabilities(model string) (ModelCapabilities, bool) {
+	if model == "" {
+		return ModelCapabilities{}, false
+	}
+	modelCapabilitiesLock.RLock()
+	defer modelCapabilitiesLock.RUnlock()
+	caps, ok := modelCapabilities[model]
+	return caps, ok
+}
 
 func GetPricing() []Pricing {
 	if time.Since(lastGetPricingTime) > time.Minute*1 || len(pricingMap) == 0 {
@@ -317,6 +338,18 @@ func updatePricing() {
 			supportedEndpoints = append(supportedEndpoints, endpointType)
 		}
 		modelSupportEndpointTypes[model] = supportedEndpoints
+	}
+
+	// fork 扩展：从模型元数据构建能力缓存（精确/前缀/后缀/包含规则匹配过的 metaMap 已就绪）
+	modelCapabilities = make(map[string]ModelCapabilities)
+	for modelName, meta := range metaMap {
+		caps := ModelCapabilities{
+			ContextLength:   int64(meta.ContextLength),
+			MaxOutputTokens: int64(meta.MaxOutputTokens),
+		}
+		if caps.ContextLength > 0 || caps.MaxOutputTokens > 0 {
+			modelCapabilities[modelName] = caps
+		}
 	}
 
 	// 构建全局 supportedEndpointMap（默认 + 自定义覆盖）

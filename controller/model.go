@@ -176,6 +176,17 @@ func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.Open
 		oaiModel.OwnedBy = owner
 	}
 	oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+	// fork 扩展：填充模型能力元数据（未录入时保持 nil，omitempty 隐藏）
+	if caps, ok := model.GetModelCapabilities(modelName); ok {
+		if caps.ContextLength > 0 {
+			ctxLen := caps.ContextLength
+			oaiModel.ContextLength = &ctxLen
+		}
+		if caps.MaxOutputTokens > 0 {
+			maxOut := caps.MaxOutputTokens
+			oaiModel.MaxOutputTokens = &maxOut
+		}
+	}
 	return oaiModel
 }
 
